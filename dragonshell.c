@@ -6,6 +6,13 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <stdlib.h>
+#include <signal.h>
+#include "jobs.h"
+
+// Define process states
+#define RUNNING 'R'
+#define SUSPENDED 'T'
+
 
 /**
  * @brief Tokenize a C string 
@@ -26,12 +33,12 @@ void tokenize(char* str, const char* delim, char ** argv) {
     argv[i] = NULL; 
 }
 
+
 int main(int argc, char **argv) {
   // print the string prompt without a newline, before beginning to read
   // tokenize the input, run the command(s), and print the result
   // do this in a loop
   printf("Welcome to DragonShell!\n\n");
-
 
   while (true) {
     printf("dragonshell> ");
@@ -42,12 +49,6 @@ int main(int argc, char **argv) {
     // tokenize the input
     char *tokens[100];
     tokenize(input, " ", tokens);
-
-    // [DEBUG] Print the tokens
-    // printf("Tokens:\n");
-    // for (size_t i = 0; tokens[i] != NULL; ++i) {
-    //     printf("Token[%zu]: %s\n", i, tokens[i]);
-    // }
 
     // default commands:
     // pwd
@@ -69,13 +70,18 @@ int main(int argc, char **argv) {
         }
         continue;
     }
+
+    // Jobs
     if (strcmp(tokens[0], "jobs") == 0) {
-        printf("Jobs command not implemented yet.\n");
+        print_jobs();
         continue;
     }
+
+    // Exit
     if (strcmp(tokens[0], "exit") == 0) {
-        printf("Not fully implemented yet.\n");
-        continue;
+        terminate_all_processes(); // Gracefully terminate all processes
+        printf("Exiting DragonShell. Goodbye!\n");
+        break;
     }
 
     // External commands
@@ -85,18 +91,17 @@ int main(int argc, char **argv) {
     if (pid == 0) {
         // Child process
         execve(tokens[0], tokens, environ);
-        // If execve fails, print error and exit
         fprintf(stderr, "dragonshell: Command not found\n");
         _exit(EXIT_FAILURE);
     } else if (pid > 0) {
         // Parent process
+        add_process(pid, RUNNING, input); // Add process to the table
         int status;
         waitpid(pid, &status, 0);
+        remove_process(pid); // Remove process after it terminates
     } else {
-        // Fork failed
         perror("dragonshell");
     }
-
   }
   return 0;
 }
