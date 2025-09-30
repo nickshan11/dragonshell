@@ -30,7 +30,7 @@ int main(int argc, char **argv) {
   // print the string prompt without a newline, before beginning to read
   // tokenize the input, run the command(s), and print the result
   // do this in a loop
-  printf("Welcome to DragonShell!\n");
+  printf("Welcome to DragonShell!\n\n");
 
 
   while (true) {
@@ -63,7 +63,7 @@ int main(int argc, char **argv) {
     // cd <directory>
     if (strcmp(tokens[0], "cd") == 0) {
         if (tokens[1] == NULL) {
-            fprintf(stderr, "cd: missing argument\n");
+            fprintf(stderr, "Expected argument to \"cd\"\n");
         } else if (chdir(tokens[1]) != 0) {
             perror("cd");
         }
@@ -79,28 +79,14 @@ int main(int argc, char **argv) {
     }
 
     // External commands
-    extern char **environment; // Access the current environment
+    extern char **environ;
 
     pid_t pid = fork();
     if (pid == 0) {
         // Child process
-        if (strchr(tokens[0], '/') == NULL) {
-            // Command does not contain a path, search in PATH
-            char *path = getenv("PATH");
-            if (path) {
-                char *dir = strtok(path, ":");
-                char full_path[1024];
-                while (dir) {
-                    snprintf(full_path, sizeof(full_path), "%s/%s", dir, tokens[0]);
-                    execve(full_path, tokens, environment);
-                    dir = strtok(NULL, ":");
-                }
-            }
-        } else {
-            // Command contains a path
-            execve(tokens[0], tokens, environment);
-        }
-        perror("dragonshell");
+        execve(tokens[0], tokens, environ);
+        // If execve fails, print error and exit
+        fprintf(stderr, "dragonshell: Command not found\n");
         _exit(EXIT_FAILURE);
     } else if (pid > 0) {
         // Parent process
