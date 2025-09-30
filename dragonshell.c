@@ -166,6 +166,30 @@ int main(int argc, char **argv) {
         pid_t pid = fork();
         if (pid == 0) {
             // Child process
+
+            // Handle input redirection
+            if (input_file) {
+                int input_fd = open(input_file, O_RDONLY);
+                if (input_fd == -1) {
+                    perror("dragonshell: Failed to open input file");
+                    _exit(EXIT_FAILURE);
+                }
+                dup2(input_fd, STDIN_FILENO);
+                close(input_fd);
+            }
+
+            // Handle output redirection
+            if (output_file) {
+                int output_fd = open(output_file, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+                if (output_fd == -1) {
+                    perror("dragonshell: Failed to open output file");
+                    _exit(EXIT_FAILURE);
+                }
+                dup2(output_fd, STDOUT_FILENO);
+                close(output_fd);
+            }
+
+            // Execute the command
             execve(tokens[0], tokens, environ);
             perror("dragonshell: Command not found");
             _exit(EXIT_FAILURE);
