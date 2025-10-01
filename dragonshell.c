@@ -288,7 +288,6 @@ int main(int argc, char **argv) {
             } else if (pid > 0) {
                 // Parent process
                 current_child_pid = pid; // Store the child PID
-                int status;
                 if (is_background) {
                     printf("PID %d is sent to background\n", pid);
                     add_process(pid, RUNNING, command_for_jobs);
