@@ -1,3 +1,4 @@
+#define _POSIX_C_SOURCE 200809L
 #include <string.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -10,11 +11,11 @@
 #include <fcntl.h>
 #include "jobs.h"
 #include "builtins.h"
+#include <ctype.h>
 
 // Define process states
 #define RUNNING 'R'
 #define SUSPENDED 'T'
-
 
 /**
  * @brief Tokenize a C string 
@@ -43,11 +44,12 @@ void handle_sigint(int sig) {
     if (current_child_pid > 0) {
         // Forward SIGINT to the child process
         kill(current_child_pid, SIGINT);
-    
-    }
-    else{
         printf("\n");
     }
+    else{
+        printf("\ndragonshell> ");
+    }
+    fflush(stdout);
 }
 
 // Signal handler for SIGTSTP (Ctrl-Z)
@@ -55,10 +57,12 @@ void handle_sigtstp(int sig) {
     if (current_child_pid > 0) {
         // Forward SIGTSTP to the child process
         kill(current_child_pid, SIGTSTP);
-    }
-    else{
         printf("\n");
     }
+    else{
+        printf("\ndragonshell> ");
+    }
+    fflush(stdout);
 }
 
 int main(int argc, char **argv) {
@@ -66,12 +70,12 @@ int main(int argc, char **argv) {
     struct sigaction sa_int, sa_tstp;
 
     sa_int.sa_handler = handle_sigint;
-    sa_int.sa_flags = 0;
+    sa_int.sa_flags = SA_RESTART;
     sigemptyset(&sa_int.sa_mask);
     sigaction(SIGINT, &sa_int, NULL);
 
     sa_tstp.sa_handler = handle_sigtstp;
-    sa_tstp.sa_flags = 0;
+    sa_tstp.sa_flags = SA_RESTART;
     sigemptyset(&sa_tstp.sa_mask);
     sigaction(SIGTSTP, &sa_tstp, NULL);
 
@@ -81,10 +85,35 @@ int main(int argc, char **argv) {
     printf("Welcome to DragonShell!\n\n");
 
   while (true) {
+    pid_t finished_pid;
+    int status;
+    while ((finished_pid = waitpid(-1, &status, WNOHANG | WUNTRACED | WCONTINUED)) > 0) {
+        if (finished_pid == current_child_pid) {
+            continue;
+        }
+        if (WIFEXITED(status) || WIFSIGNALED(status)) {
+            remove_process(finished_pid);
+        } else if (WIFSTOPPED(status)) {
+            update_process_state(finished_pid, SUSPENDED);
+        } else if (WIFCONTINUED(status)) {
+            update_process_state(finished_pid, RUNNING);
+        }
+    }
+
     printf("dragonshell> ");
     char input[1024];
-    fgets(input, sizeof(input), stdin);
+    if (!fgets(input, sizeof(input), stdin)) {
+        break;
+    }
     input[strcspn(input, "\n")] = 0;
+
+    char input_copy[1024];
+    strncpy(input_copy, input, sizeof(input_copy));
+    input_copy[sizeof(input_copy) - 1] = '\0';
+
+    char command_for_jobs[1024];
+    strncpy(command_for_jobs, input_copy, sizeof(command_for_jobs));
+    command_for_jobs[sizeof(command_for_jobs) - 1] = '\0';
 
     // tokenize the input
     char *tokens[100];
@@ -125,7 +154,17 @@ int main(int argc, char **argv) {
     while (tokens[token_count] != NULL) token_count++;
     if (token_count > 0 && strcmp(tokens[token_count - 1], "&") == 0) {
         is_background = true;
-        tokens[token_count - 1] = NULL; // Remove '&' from the tokens
+        tokens[token_count - 1] = NULL;
+        size_t len = strlen(command_for_jobs);
+        while (len > 0 && isspace((unsigned char)command_for_jobs[len - 1])) {
+            command_for_jobs[--len] = '\0';
+        }
+        if (len > 0 && command_for_jobs[len - 1] == '&') {
+            command_for_jobs[--len] = '\0';
+            while (len > 0 && isspace((unsigned char)command_for_jobs[len - 1])) {
+                command_for_jobs[--len] = '\0';
+            }
+        }
     }
 
     // Check for input/output redirection
@@ -208,7 +247,7 @@ int main(int argc, char **argv) {
         pid_t pid = fork();
         if (pid == 0) {
             // Child process
-
+            setpgid(0,0);
             // Handle input redirection
             if (input_file) {
                 int input_fd = open(input_file, O_RDONLY);
@@ -231,6 +270,17 @@ int main(int argc, char **argv) {
                 close(output_fd);
             }
 
+            if (is_background) {
+                int devnull_fd = open("/dev/null", O_WRONLY);
+                if (devnull_fd == -1) {
+                    perror("dragonshell: Failed to open /dev/null");
+                    _exit(EXIT_FAILURE);
+                }
+                dup2(devnull_fd, STDOUT_FILENO);
+                dup2(devnull_fd, STDERR_FILENO);
+                close(devnull_fd);
+            }
+
                 // Execute the command
                 execve(tokens[0], tokens, environ);
                 perror("dragonshell: Command not found");
@@ -238,17 +288,21 @@ int main(int argc, char **argv) {
             } else if (pid > 0) {
                 // Parent process
                 current_child_pid = pid; // Store the child PID
-
+                int status;
                 if (is_background) {
                     printf("PID %d is sent to background\n", pid);
-                    add_process(pid, RUNNING, input); // Add to process table
+                    add_process(pid, RUNNING, command_for_jobs);
+                    current_child_pid = -1;
                 } else {
                     int status;
-                    waitpid(pid, &status, 0); // Wait for foreground process
-                    remove_process(pid); // Remove from process table
+                    waitpid(pid, &status, WUNTRACED);
+                    if (WIFSTOPPED(status)) {
+                        add_process(pid, SUSPENDED, command_for_jobs);
+                    } else {
+                        remove_process(pid);
+                    }
+                    current_child_pid = -1;
                 }
-
-                current_child_pid = -1; // Reset the child PID after the process ends
             } else {
                 // Fork failed
                 perror("dragonshell");

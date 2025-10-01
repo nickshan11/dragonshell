@@ -15,9 +15,9 @@ void builtin_pwd() {
 
 void builtin_cd(char *path) {
     if (path == NULL) {
-        fprintf(stderr, "Expected argument to \"cd\"\n");
+        fprintf(stderr, "dragonshell: Expected argument to \"cd\"\n");
     } else if (chdir(path) != 0) {
-        perror("cd");
+        perror("dragonshell");
     }
 }
 
