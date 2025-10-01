@@ -35,12 +35,50 @@ void tokenize(char* str, const char* delim, char ** argv) {
     argv[i] = NULL; 
 }
 
+// Global variable to store the PID of the current child process
+pid_t current_child_pid = -1;
+
+// Signal handler for SIGINT (Ctrl-C)
+void handle_sigint(int sig) {
+    if (current_child_pid > 0) {
+        // Forward SIGINT to the child process
+        kill(current_child_pid, SIGINT);
+    
+    }
+    else{
+        printf("\n");
+    }
+}
+
+// Signal handler for SIGTSTP (Ctrl-Z)
+void handle_sigtstp(int sig) {
+    if (current_child_pid > 0) {
+        // Forward SIGTSTP to the child process
+        kill(current_child_pid, SIGTSTP);
+    }
+    else{
+        printf("\n");
+    }
+}
 
 int main(int argc, char **argv) {
-  // print the string prompt without a newline, before beginning to read
-  // tokenize the input, run the command(s), and print the result
-  // do this in a loop
-  printf("Welcome to DragonShell!\n\n");
+    // Set up signal handlers
+    struct sigaction sa_int, sa_tstp;
+
+    sa_int.sa_handler = handle_sigint;
+    sa_int.sa_flags = 0;
+    sigemptyset(&sa_int.sa_mask);
+    sigaction(SIGINT, &sa_int, NULL);
+
+    sa_tstp.sa_handler = handle_sigtstp;
+    sa_tstp.sa_flags = 0;
+    sigemptyset(&sa_tstp.sa_mask);
+    sigaction(SIGTSTP, &sa_tstp, NULL);
+
+    // print the string prompt without a newline, before beginning to read
+    // tokenize the input, run the command(s), and print the result
+    // do this in a loop
+    printf("Welcome to DragonShell!\n\n");
 
   while (true) {
     printf("dragonshell> ");
@@ -51,6 +89,10 @@ int main(int argc, char **argv) {
     // tokenize the input
     char *tokens[100];
     tokenize(input, " ", tokens);
+
+    if (tokens[0] == NULL) {
+        continue;
+    }
 
     // Built-in commands
     // pwd
@@ -189,25 +231,29 @@ int main(int argc, char **argv) {
                 close(output_fd);
             }
 
-            // Execute the command
-            execve(tokens[0], tokens, environ);
-            perror("dragonshell: Command not found");
-            _exit(EXIT_FAILURE);
-        } else if (pid > 0) {
-            // Parent process
-            if (is_background) {
-                printf("PID %d is sent to background\n", pid);
-                add_process(pid, RUNNING, input); // Add to process table
+                // Execute the command
+                execve(tokens[0], tokens, environ);
+                perror("dragonshell: Command not found");
+                _exit(EXIT_FAILURE);
+            } else if (pid > 0) {
+                // Parent process
+                current_child_pid = pid; // Store the child PID
+
+                if (is_background) {
+                    printf("PID %d is sent to background\n", pid);
+                    add_process(pid, RUNNING, input); // Add to process table
+                } else {
+                    int status;
+                    waitpid(pid, &status, 0); // Wait for foreground process
+                    remove_process(pid); // Remove from process table
+                }
+
+                current_child_pid = -1; // Reset the child PID after the process ends
             } else {
-                int status;
-                waitpid(pid, &status, 0); // Wait for foreground process
-                remove_process(pid); // Remove from process table
+                // Fork failed
+                perror("dragonshell");
             }
-        } else {
-            // Fork failed
-            perror("dragonshell");
         }
     }
-  }
-  return 0;
+    return 0;
 }
