@@ -70,12 +70,6 @@ The `waitpid()` system call is used to handle the termination of child processes
 
 For background processes, the `fork()` system call was used without `waitpid()`, allowing the shell to continue accepting new commands while the background process runs independently. Outputs from background processes get sent to `/dev/null` to prevent outputting to stdout.
 
-### Testing:
-
-The testing process began with running the sample tests provided in the assignment description. These tests were used to verify the basic functionality of the shell, including built-in commands, external program execution, file redirection, piping, and signal handling.
-
-After the sample tests, additional edge cases were tested to ensure the robustness of the implementation. For example, edge cases included invalid commands, missing files for redirection, deeply nested pipelines, and handling signals like `Ctrl-C` and `Ctrl-Z` during various operations. 
-
 ## References:
 
 Syscall commands from:<br>
