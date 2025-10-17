@@ -1,3 +1,26 @@
+## Project Overview
+
+This project is a custom Unix shell implemented in C, supporting job control, built-in commands, process management, input/output redirection, and pipelines.
+
+## How to Run
+
+1. **Build the shell:**  
+   Open a terminal in this directory and run:
+   ```
+   make
+   ```
+
+2. **Start the shell:**  
+   After building, run:
+   ```
+   ./dragonshell
+   ```
+
+3. **Usage:**  
+   Enter commands as you would in a typical Unix shell.  
+   Supported features include built-in commands (`cd`, `exit`, job control), running external programs, input/output redirection, pipelines, and background processes.
+
+---
 
 ## Design Choices:
 
@@ -68,7 +91,7 @@ https://tldp.org/LDP/lpg/node11.html<br>
 https://www2.cs.uregina.ca/~hamilton/courses/330/notes/unix/pipes/pipes.html<br>
 https://medium.com/@show981111/what-is-pipe-in-os-424cfc65532f<br>
 https://www.scaler.com/topics/pipes-in-os/<br>
-Week 2 TA Slides
+Week 2 CMPUT 379 TA Slides
 
 
 File Redirection:<br>
@@ -79,5 +102,4 @@ Signals:<br>
 https://www.andrew.cmu.edu/course/15-310/applications/homework/homework4/signal_example2.html <br>
 https://stackoverflow.com/questions/11465148/using-sigaction-c <br>
 https://www.codequoi.com/en/sending-and-intercepting-a-signal-in-c/<br>
-Week 2 TA Slides
-
+Week 2 CMPUT 379 TA Slides
